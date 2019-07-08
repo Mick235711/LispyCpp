@@ -144,7 +144,7 @@ public:
 
 private:
     // Member declarations
-    std::variant<LL, string, string, string, cell_t, cell_t, builtin_t, lambda_t> va;
+    std::variant<LL, string, string, string, cell_t, cell_t, std::pair<builtin_t, string>, lambda_t> va;
 
 private:
     // Helper functions
@@ -178,8 +178,10 @@ public:
     const string& str() const {return get<LVAL_STR>(va);}
     cell_t& cell() {return cell_in();}
     const cell_t& cell() const {return cell_in();}
-    builtin_t& fun() {return get<LVAL_FUN>(va);}
-    const builtin_t& fun() const {return get<LVAL_FUN>(va);}
+    builtin_t& fun() {return get<LVAL_FUN>(va).first;}
+    const builtin_t& fun() const {return get<LVAL_FUN>(va).first;}
+    string& fun_name() {return get<LVAL_FUN>(va).second;}
+    const string& fun_name() const {return get<LVAL_FUN>(va).second;}
     lambda_t& lambda() {return get<LVAL_LAMBDA>(va);}
     const lambda_t& lambda() const {return get<LVAL_LAMBDA>(va);}
 
@@ -254,7 +256,7 @@ public:
     // create a Q-Expr lval
     explicit lval(lval_q_t, const cell_t& c = cell_t()) noexcept :va(in_place_index<LVAL_QEXPR>, c) {}
     // create a function lval
-    explicit lval(const builtin_t& func) noexcept :va(func) {}
+    lval(const builtin_t& func, const string& name) noexcept :va(std::make_pair(func, name)) {}
     // create a lambda lval
     lval(const lval& f, const lval& b) noexcept :va(lambda_t(f, b)) {}
     // create lval from an AST
@@ -413,7 +415,7 @@ ostream& operator<<(ostream& out, const lval& v) noexcept
 
         case lval::LVAL_FUN:
             // v is a Function, print it
-            out << "<builtin function>";
+            out << "<builtin function " << v.fun_name() << ">";
             break;
 
         case lval::LVAL_LAMBDA:
@@ -654,6 +656,38 @@ lval builtin_var(lenv& e, const lval& v, const string& func) // noexcept(false)
     return lval();
 }
 
+// builtin function env
+// return all the vars in the environment(0-arg) or specific value(1-arg)
+lval builtin_env(lenv& e, const lval& v) // noexcept(false)
+{
+    // Check error conditions
+    LASSERT_NUM("env", v, 1);
+    LASSERT_TYPE("env", v.cell()[0], 1, lval::LVAL_QEXPR, "Q-Expression");
+
+    if (v.cell()[0].cell().empty())
+    {
+        // Get all the vars
+        lval res{l_qexpr};
+        for (const auto& a : e.env)
+        {
+            lval sym{a.first, l_sym}, val{a.second};
+            lval pa{l_qexpr};
+            pa.add(sym); pa.add(val);
+            res.add(pa);
+        }
+        return res;
+    }
+
+    // Get specific value
+    LASSERT_NUM("env", v.cell()[0], 1);
+    LASSERT_TYPE("env", v.cell()[0].cell()[0], 1, lval::LVAL_SYM, "Symbol");
+    // find the value in current scope
+    auto cit = e.env.find(v.cell()[0].cell()[0].sym());
+    if (cit != e.env.cend())
+        return cit->second;
+    return lval("Unknown symbol " + v.cell()[0].cell()[0].sym(), l_err);
+}
+
 // builtin function ord (</>/<=/>=)
 lval builtin_ord(lenv&, const lval& v, const string& func) // noexcept(false)
 {
@@ -761,6 +795,17 @@ lval builtin_err(lenv& e, const lval& v) // noexcept(false)
     return lval(v.cell()[0].str(), l_err);
 }
 
+// builtin function exit
+// exit the program with specified value
+lval builtin_exit(lenv&, const lval& v)
+{
+    // Check error conditions
+    LASSERT_NUM("exit", v, 1);
+    LASSERT_TYPE("exit", v.cell()[0], 1, lval::LVAL_NUM, "Number");
+
+    std::exit(v.cell()[0].num());
+}
+
 // call a function/lambda
 lval call(lenv& e, const lval& function, const lval& value) // noexcept(false)
 {
@@ -842,7 +887,7 @@ lval call(lenv& e, const lval& function, const lval& value) // noexcept(false)
 // Add a builtin function
 void add_builtin(lenv& e, const string& name, const builtin_t& func) noexcept
 {
-    put(e, lval(name, l_sym), lval(func));
+    put(e, lval(name, l_sym), lval(func, name));
 }
 
 // Add all the builtins
@@ -859,6 +904,7 @@ void add_builtins(lenv& e, mpc_pt& p) noexcept
     add_builtin(e, "def", [](lenv& e, const lval& v){return builtin_var(e, v, "def");});
     add_builtin(e, "=", [](lenv& e, const lval& v){return builtin_var(e, v, "=");});
     add_builtin(e, "\\", builtin_lambda);
+    add_builtin(e, "env", builtin_env);
 
     // Arithmetic functions
     add_builtin(e, "+", [](lenv& e, const lval& v){return builtin_op(e, v, "+");});
@@ -876,10 +922,11 @@ void add_builtins(lenv& e, mpc_pt& p) noexcept
     add_builtin(e, "!=", [](lenv& e, const lval& v){return builtin_cmp(e, v, "!=");});
     add_builtin(e, "if", builtin_if);
 
-    // Load functions
+    // System functions
     add_builtin(e, "load", [&p](lenv& e, const lval& v){return builtin_load(e, v, p);});
     add_builtin(e, "print", builtin_print);
     add_builtin(e, "error", builtin_err);
+    add_builtin(e, "exit", builtin_exit);
 }
 
 // Evaluate a S-Expr lval
@@ -978,12 +1025,12 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.0.3"s;
+    const auto lispy_ver = "1.0.4"s;
     cout << "Lispy Version " << lispy_ver << '\n';
-    cout << "Press Ctrl-C to exit." << endl;
+    cout << "Type 'exit 0' to exit." << endl;
 
     // main infinite loop
-    while (lispy_ver == "1.0.3"s)
+    while (true)
     {
         // Output prompt and got input
         string input = readline("lispy> ");
