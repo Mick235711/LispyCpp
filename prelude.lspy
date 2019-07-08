@@ -47,6 +47,9 @@
 (fun {second l} {first (tail l)})
 (fun {third l} {second (tail l)})
 
+; Concat value and list
+(fun {cons x l} {join (list x) l})
+
 ; List length
 (fun {len l} {
     if (== l nil)
