@@ -506,6 +506,15 @@ lval builtin_op(lenv&, const lval& v, const string& op) // noexcept(false)
             }
             lhs.num() /= rhs.num();
         }
+        if (op == "%") // Detecting modulo by zero
+        {
+            if (rhs.num() == 0)
+            {
+                lhs = lval("Modulo by zero!", l_err);
+                break;
+            }
+            lhs.num() %= rhs.num();
+        }
     }
 
     return lhs;
@@ -856,6 +865,7 @@ void add_builtins(lenv& e, mpc_pt& p) noexcept
     add_builtin(e, "-", [](lenv& e, const lval& v){return builtin_op(e, v, "-");});
     add_builtin(e, "*", [](lenv& e, const lval& v){return builtin_op(e, v, "*");});
     add_builtin(e, "/", [](lenv& e, const lval& v){return builtin_op(e, v, "/");});
+    add_builtin(e, "%", [](lenv& e, const lval& v){return builtin_op(e, v, "%");});
 
     // Comparision functions
     add_builtin(e, "<", [](lenv& e, const lval& v){return builtin_ord(e, v, "<");});
@@ -933,7 +943,7 @@ int main(int argc, char* argv[]) // noexcept(false)
     // Define parsers with language
     const auto lang = R"*******(
         number  : /(+|-)?[0-9]+/ ;
-        symbol  : /[a-zA-Z0-9_+\-*\/\\=<>!&]+/ ;
+        symbol  : /[a-zA-Z0-9_+\-*\/%\\=<>!&]+/ ;
         string  : /"(\\.|[^"])*"/ ;
         comment : /;[^\r\n]*/ ;
         sexpr   : '(' <expr>* ')' ;
@@ -968,12 +978,12 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.0"s;
+    const auto lispy_ver = "1.0.1"s;
     cout << "Lispy Version " << lispy_ver << '\n';
     cout << "Press Ctrl-C to exit." << endl;
 
     // main infinite loop
-    while (lispy_ver == "1.0"s)
+    while (lispy_ver == "1.0.1"s)
     {
         // Output prompt and got input
         string input = readline("lispy> ");

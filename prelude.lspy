@@ -109,6 +109,13 @@
         {foldl f (f z (first l)) (tail l)}
 })
 
+; Synonyms for arithmetic operations
+(def {add} +)
+(def {sub} -)
+(def {mul} *)
+(def {div} /)
+(def {mod} %)
+
 ; Sum and product
 (fun {sum l} {foldl + 0 l})
 (fun {product l} {foldl * 1 l})
