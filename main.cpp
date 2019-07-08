@@ -720,6 +720,40 @@ lval builtin_cmp(lenv&, const lval& v, const string& func) // noexcept(false)
     return lval(result);
 }
 
+// builtin function not(!/~)
+// provide logical operator !/~
+lval builtin_not(lenv&, const lval& v, const string& func) // noexcept(false)
+{
+    // Check error conditions
+    LASSERT_NUM(func, v, 1);
+    LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number");
+
+    int result = 0, op = v.cell()[0].num();
+    if (func == "!") result = !op;
+    if (func == "~") result = ~op;
+    return lval(result);
+}
+
+// builtin function log(||/&&/|/&/^)
+// provide logical operator ||/&&/|/&/^
+lval builtin_log(lenv&, const lval& v, const string& func) // noexcept(false)
+{
+    // Check error conditions
+    LASSERT_NUM(func, v, 2);
+    LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number");
+    LASSERT_TYPE(func, v.cell()[1], 2, lval::LVAL_NUM, "Number");
+
+    // Do the logical operation
+    int result = false;
+    int lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
+    if (func == "||") result = lhs || rhs;
+    if (func == "&&") result = lhs && rhs;
+    if (func == "|") result = lhs | rhs;
+    if (func == "&") result = lhs & rhs;
+    if (func == "^") result = lhs ^ rhs;
+    return lval(result);
+}
+
 // builtin function if
 // simulate the if statement
 lval builtin_if(lenv& e, const lval& v) // noexcept(false)
@@ -797,7 +831,7 @@ lval builtin_err(lenv& e, const lval& v) // noexcept(false)
 
 // builtin function exit
 // exit the program with specified value
-lval builtin_exit(lenv&, const lval& v)
+lval builtin_exit(lenv&, const lval& v) // noexcept(false)
 {
     // Check error conditions
     LASSERT_NUM("exit", v, 1);
@@ -913,6 +947,15 @@ void add_builtins(lenv& e, mpc_pt& p) noexcept
     add_builtin(e, "/", [](lenv& e, const lval& v){return builtin_op(e, v, "/");});
     add_builtin(e, "%", [](lenv& e, const lval& v){return builtin_op(e, v, "%");});
 
+    // Bitwise functions
+    add_builtin(e, "!", [](lenv& e, const lval& v){return builtin_not(e, v, "!");});
+    add_builtin(e, "~", [](lenv& e, const lval& v){return builtin_not(e, v, "~");});
+    add_builtin(e, "||", [](lenv& e, const lval& v){return builtin_log(e, v, "||");});
+    add_builtin(e, "&&", [](lenv& e, const lval& v){return builtin_log(e, v, "&&");});
+    add_builtin(e, "|", [](lenv& e, const lval& v){return builtin_log(e, v, "|");});
+    add_builtin(e, "&", [](lenv& e, const lval& v){return builtin_log(e, v, "&");});
+    add_builtin(e, "^", [](lenv& e, const lval& v){return builtin_log(e, v, "^");});
+
     // Comparision functions
     add_builtin(e, "<", [](lenv& e, const lval& v){return builtin_ord(e, v, "<");});
     add_builtin(e, ">", [](lenv& e, const lval& v){return builtin_ord(e, v, ">");});
@@ -990,7 +1033,7 @@ int main(int argc, char* argv[]) // noexcept(false)
     // Define parsers with language
     const auto lang = R"*******(
         number  : /(+|-)?[0-9]+/ ;
-        symbol  : /[a-zA-Z0-9_+\-*\/%\\=<>!&]+/ ;
+        symbol  : /[a-zA-Z0-9_+\-*\/%\\=<>!&~\|\^]+/ ;
         string  : /"(\\.|[^"])*"/ ;
         comment : /;[^\r\n]*/ ;
         sexpr   : '(' <expr>* ')' ;
@@ -1025,7 +1068,7 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.0.4"s;
+    const auto lispy_ver = "1.0.5"s;
     cout << "Lispy Version " << lispy_ver << '\n';
     cout << "Type 'exit 0' to exit." << endl;
 

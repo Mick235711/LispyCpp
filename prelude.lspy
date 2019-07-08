@@ -32,11 +32,6 @@
     ((\ {_} b) ())
 })
 
-; Logical operators
-(fun {not x} {- 1 x})
-(fun {or x y} {+ x y})
-(fun {and x y} {* x y})
-
 ; Miscellaneous functions
 (fun {flip f a b} {f b a})
 (fun {ghost & xs} {eval xs})
@@ -112,12 +107,19 @@
         {foldl f (f z (first l)) (tail l)}
 })
 
-; Synonyms for arithmetic operations
+; Synonyms for operations
 (def {add} +)
 (def {sub} -)
 (def {mul} *)
 (def {div} /)
 (def {mod} %)
+(def {and} &&)
+(def {or} ||)
+(def {not} !)
+(def {xor} ^)
+(def {bitand} &)
+(def {bitor} |)
+(def {bitnot} ^)
 
 ; Sum and product
 (fun {sum l} {foldl + 0 l})
