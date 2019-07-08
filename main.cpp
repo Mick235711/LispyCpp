@@ -978,12 +978,12 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.0.1"s;
+    const auto lispy_ver = "1.0.2"s;
     cout << "Lispy Version " << lispy_ver << '\n';
     cout << "Press Ctrl-C to exit." << endl;
 
     // main infinite loop
-    while (lispy_ver == "1.0.1"s)
+    while (lispy_ver == "1.0.2"s)
     {
         // Output prompt and got input
         string input = readline("lispy> ");

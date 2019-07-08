@@ -71,7 +71,7 @@ Type definition in mpc language: (/x/ implies that x is a regex)
 
 ### Builtin functions
 Builtin functions in Lispy are `list`, `head`, `eval`, `tail`, `join`,
-`def`, `=`, `\\`(lambda), `+`, `-`, `*`, `/`, `<`, `>`, `<=`, `>=`, `==`, `!=`,
+`def`, `=`, `\\`(lambda), `+`, `-`, `*`, `/`, `%`, `<`, `>`, `<=`, `>=`, `==`, `!=`,
 `if`, `load`, `print` and `error`. All other functions are defined by user.
 
 ### Standard Library

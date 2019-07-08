@@ -120,6 +120,25 @@
 (fun {sum l} {foldl + 0 l})
 (fun {product l} {foldl * 1 l})
 
+; Exponent function
+(fun {exp a b} {
+    if (== b 0)
+        {1}
+        {* a (exp a (- b 1))}
+})
+
+; Min and Max
+(fun {min x & xs} {
+    if (== xs nil)
+        {x}
+        {unpack min (if (< x (first xs)) {join (list x) (tail xs)} {xs})}
+})
+(fun {max x & xs} {
+    if (== xs nil)
+        {x}
+        {unpack max (if (> x (first xs)) {join (list x) (tail xs)} {xs})}
+})
+
 ; Conditional functions
 (fun {select & cs} {
     if (== cs nil)
