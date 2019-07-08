@@ -1,0 +1,137 @@
+; A standard library for Lispy
+
+; Atoms
+(def {nil} {})
+(def {true} 1)
+(def {false} 0)
+
+; Function Definition
+(def {fun} (\ {args body} {
+    def (head args) (\ (tail args) body)
+}))
+
+; Unpack and pack lists for functions
+(fun {unpack f xs} {
+    eval (join (list f) xs)
+})
+(fun {pack f & xs} {f xs})
+
+; Curry and uncurry
+(def {curry} unpack)
+(def {uncurry} pack)
+
+; Perform sequences (operator,)
+(fun {do & l} {
+    if (== l nil)
+        {nil}
+        {last l}
+})
+
+; Open a new scope
+(fun {let b} {
+    ((\ {_} b) ())
+})
+
+; Logical operators
+(fun {not x} {- 1 x})
+(fun {or x y} {+ x y})
+(fun {and x y} {* x y})
+
+; Miscellaneous functions
+(fun {flip f a b} {f b a})
+(fun {ghost & xs} {eval xs})
+(fun {comp f g x} {f (g x)})
+
+; Extract 1/2/3 element from list
+(fun {first l} {eval (head l)})
+(fun {second l} {first (tail l)})
+(fun {third l} {second (tail l)})
+
+; List length
+(fun {len l} {
+    if (== l nil)
+        {0}
+        {+ 1 (len (tail l))}
+})
+
+; Nth item in the list
+(fun {nth n l} {
+    if (== n 0)
+        {first l}
+        {nth (- n 1) (tail l)}
+})
+
+; Last item in the list
+(fun {last l} {nth (- (len l) 1) l})
+
+; Take n items
+(fun {take n l} {
+    if (== n 0)
+        {nil}
+        {join (head l) (take (- n 1) (tail l))}
+})
+
+; Drop n items
+(fun {drop n l} {
+    if (== n 0)
+        {l}
+        {drop (- n 1) (tail l)}
+})
+
+; Split at n
+(fun {split n l} {list (take n l) (drop n l)})
+
+; Element of list
+(fun {elem x l} {
+    if (== l nil)
+        {false}
+        {if (== x (first l)) {true} {elem x (tail l)}}
+})
+
+; Apply function to list
+(fun {map f l} {
+    if (== l nil)
+        {nil}
+        {join (list (f (first l))) (map f (tail l))}
+})
+
+; Apply filters to list
+(fun {filter f l} {
+    if (== l nil)
+        {nil}
+        {join (if (f (first l)) {head l} {nil}) (filter f (tail l))}
+})
+
+; Fold left
+(fun {foldl f z l} {
+    if (== l nil)
+        {z}
+        {foldl f (f z (first l)) (tail l)}
+})
+
+; Sum and product
+(fun {sum l} {foldl + 0 l})
+(fun {product l} {foldl * 1 l})
+
+; Conditional functions
+(fun {select & cs} {
+    if (== cs nil)
+        {error "No Selection Found"}
+        {if (first (first cs)) {second (first cs)} {unpack select (tail cs)}}
+})
+(def {otherwise} true)
+(fun {case x & cs} {
+    if (== cs nil)
+        {error "No Case Found"}
+        {if (== x (first (first cs))) {second (first cs)} {
+            unpack case (join (list x) (tail cs))
+        }}
+})
+
+; Fibonacci
+(fun {fib n} {
+    select
+        {(== n 0) 0}
+        {(== n 1) 1}
+        {otherwise (+ (fib (- n 1)) (fib (- n 2)))}
+})
