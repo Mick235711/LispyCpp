@@ -698,7 +698,7 @@ lval builtin_ord(lenv&, const lval& v, const string& func) // noexcept(false)
 
     // Do the arithmetic comparision
     bool result = false;
-    int lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
+    size_t lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
     if (func == ">") result = lhs > rhs;
     if (func == "<") result = lhs < rhs;
     if (func == ">=") result = lhs >= rhs;
@@ -728,7 +728,7 @@ lval builtin_not(lenv&, const lval& v, const string& func) // noexcept(false)
     LASSERT_NUM(func, v, 1);
     LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number");
 
-    int result = 0, op = v.cell()[0].num();
+    size_t result = 0, op = v.cell()[0].num();
     if (func == "!") result = !op;
     if (func == "~") result = ~op;
     return lval(result);
@@ -744,8 +744,8 @@ lval builtin_log(lenv&, const lval& v, const string& func) // noexcept(false)
     LASSERT_TYPE(func, v.cell()[1], 2, lval::LVAL_NUM, "Number");
 
     // Do the logical operation
-    int result = false;
-    int lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
+    size_t result = 0;
+    size_t lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
     if (func == "||") result = lhs || rhs;
     if (func == "&&") result = lhs && rhs;
     if (func == "|") result = lhs | rhs;
@@ -1096,5 +1096,4 @@ int main(int argc, char* argv[]) // noexcept(false)
             mpc_err_print(err.get());
         }
     }
-    return 0;
 }

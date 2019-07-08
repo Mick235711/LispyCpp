@@ -83,7 +83,7 @@ Many useful function like `fun`, `map`, `foldl` are included.
 ## Future
 There are still a lot to invent for this toy Lispy compiler and language.
 #### Todo for present time
-Finish most of the bonus questions in Build Your Own Lisp, like adding logical operators.
+~~Finish most of the bonus questions in Build Your Own Lisp, like adding logical operators.~~
 #### Future Todo
 Pick a few Bonus Projects in Chapter 16 to finish, like float-number and user-defined types.
 
