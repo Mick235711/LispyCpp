@@ -139,12 +139,12 @@ struct lval
 {
 public:
     // Enum and type declarations
-    enum {LVAL_NUM = 0, LVAL_ERR, LVAL_SYM, LVAL_STR, LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN, LVAL_LAMBDA}; // lval types
+    enum {LVAL_NUM = 0, LVAL_DNUM, LVAL_ERR, LVAL_SYM, LVAL_STR, LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN, LVAL_LAMBDA}; // lval types
     typedef vector<lval> cell_t;
 
 private:
     // Member declarations
-    std::variant<LL, string, string, string, cell_t, cell_t, std::pair<builtin_t, string>, lambda_t> va;
+    std::variant<LL, D, string, string, string, cell_t, cell_t, std::pair<builtin_t, string>, lambda_t> va;
 
 private:
     // Helper functions
@@ -155,7 +155,7 @@ private:
         {
             return get<LVAL_SEXPR>(va);
         }
-        catch (std::bad_variant_access&)
+        catch (const std::bad_variant_access&)
         {
             return get<LVAL_QEXPR>(va);
         }
@@ -170,6 +170,9 @@ public:
     const size_t type() const noexcept {return va.index();}
     LL& num() {return get<LVAL_NUM>(va);}
     const LL num() const {return get<LVAL_NUM>(va);}
+    D& dnum() {return get<LVAL_DNUM>(va);}
+    const D dnum() const {return get<LVAL_DNUM>(va);}
+    const D convert_num() const {return type() == LVAL_NUM ? static_cast<D>(num()) : dnum();}
     string& err() {return get<LVAL_ERR>(va);}
     const string& err() const {return get<LVAL_ERR>(va);}
     string& sym() {return get<LVAL_SYM>(va);}
@@ -194,9 +197,29 @@ public:
         {
             return lval(stoll(string(a->contents)));
         }
-        catch (exception&)
+        catch (const std::invalid_argument&)
         {
             return lval("Invalid number "s + a->contents, l_err);
+        }
+        catch (const std::out_of_range&)
+        {
+            return lval("Number "s + a->contents + " out of range.", l_err);
+        }
+    }
+    // read a float from AST
+    static lval read_float(mpc_ast_t* a) noexcept
+    {
+        try
+        {
+            return lval(stod(string(a->contents)));
+        }
+        catch (const std::invalid_argument&)
+        {
+            return lval("Invalid float number "s + a->contents, l_err);
+        }
+        catch (const std::out_of_range&)
+        {
+            return lval("Float number "s + a->contents + " out of range.", l_err);
         }
     }
     // read a string from AST
@@ -245,6 +268,8 @@ public:
     lval() noexcept :lval(l_sexpr) {}
     // create a value lval
     explicit lval(LL n) noexcept :va(n) {}
+    // create a float lval
+    explicit lval(D d) noexcept :va(d) {}
     // create an error lval
     lval(const string& e, lval_err_t) noexcept :va(in_place_index<LVAL_ERR>, e) {}
     // create a symbol lval
@@ -264,6 +289,7 @@ public:
     {
         // symbol, number or string: defer to the constructor
         if (string(a->tag).find("number") != string::npos) *this = read_num(a);
+        if (string(a->tag).find("float")  != string::npos) *this = read_float(a);
         if (string(a->tag).find("symbol") != string::npos) *this = lval(a->contents, l_sym);
         if (string(a->tag).find("string") != string::npos) *this = read_str(a);
 
@@ -328,6 +354,8 @@ bool operator==(const lval& lhs, const lval& rhs) noexcept
     {
         case lval::LVAL_NUM:
             return lhs.num() == rhs.num();
+        case lval::LVAL_DNUM:
+            return lhs.dnum() == rhs.dnum();
         case lval::LVAL_ERR:
             return lhs.err() == rhs.err();
         case lval::LVAL_SYM:
@@ -359,6 +387,7 @@ string to_string(const lval& v) noexcept
     switch (v.type())
     {
         case lval::LVAL_NUM: return "Number";
+        case lval::LVAL_DNUM: return "Float Number";
         case lval::LVAL_ERR: return "Error";
         case lval::LVAL_SYM: return "Symbol";
         case lval::LVAL_STR: return "String";
@@ -382,6 +411,11 @@ ostream& operator<<(ostream& out, const lval& v) noexcept
         case lval::LVAL_NUM:
             // v is a number, print it
             out << v.num();
+            break;
+
+        case lval::LVAL_DNUM:
+            // v is a float, print it
+            out << v.dnum();
             break;
 
         case lval::LVAL_ERR:
@@ -478,7 +512,8 @@ lval builtin_op(lenv&, const lval& v, const string& op) // noexcept(false)
     for (size_t i = 0; i < v.cell().size(); ++i)
     {
         const auto& a = v.cell()[i];
-        LASSERT_TYPE(op, a, "1." + to_string(i + 1), lval::LVAL_NUM, "Number");
+        if (a.type() != lval::LVAL_DNUM)
+            LASSERT_TYPE(op, a, "1." + to_string(i + 1), lval::LVAL_NUM, "Number/Float Number");
     }
 
     // pop the first element
@@ -487,35 +522,92 @@ lval builtin_op(lenv&, const lval& v, const string& op) // noexcept(false)
 
     // no other arguments: unary +/-
     if (res.cell().empty() && op == "-")
-        lhs.num() = -lhs.num();
+    {
+        if (lhs.type() == lval::LVAL_NUM)
+            lhs.num() = -lhs.num();
+        else lhs.dnum() = -lhs.dnum();
+    }
 
     // Process other arguments
     while (!res.cell().empty())
     {
-        // pop next element
-        lval rhs = res.pop(res.cell().cbegin());
+        if (lhs.type() == lval::LVAL_NUM)
+        {
+            // pop next element
+            lval rhs = res.pop(res.cell().cbegin());
 
-        // process operation
-        if (op == "+") lhs.num() += rhs.num();
-        if (op == "-") lhs.num() -= rhs.num();
-        if (op == "*") lhs.num() *= rhs.num();
-        if (op == "/") // Detecting division by zero
-        {
-            if (rhs.num() == 0)
+            if (rhs.type() == lval::LVAL_NUM)
             {
-                lhs = lval("Division by zero!", l_err);
-                break;
+                // process operation
+                if (op == "+") lhs.num() += rhs.num();
+                if (op == "-") lhs.num() -= rhs.num();
+                if (op == "*") lhs.num() *= rhs.num();
+                if (op == "/") // Detecting division by zero
+                {
+                    if (rhs.num() == 0)
+                    {
+                        lhs = lval("Division by zero!", l_err);
+                        break;
+                    }
+                    lhs.num() /= rhs.num();
+                }
+                if (op == "%") // Detecting modulo by zero
+                {
+                    if (rhs.num() == 0)
+                    {
+                        lhs = lval("Modulo by zero!", l_err);
+                        break;
+                    }
+                    lhs.num() %= rhs.num();
+                }
             }
-            lhs.num() /= rhs.num();
+            else
+            {
+                lhs = lval(static_cast<D>(lhs.num()));
+
+                // process operation
+                if (op == "+") lhs.dnum() += rhs.dnum();
+                if (op == "-") lhs.dnum() -= rhs.dnum();
+                if (op == "*") lhs.dnum() *= rhs.dnum();
+                if (op == "/") // Detecting division by zero
+                {
+                    if (rhs.dnum() == 0)
+                    {
+                        lhs = lval("Division by zero!", l_err);
+                        break;
+                    }
+                    lhs.dnum() /= rhs.dnum();
+                }
+                if (op == "%") // Detecting modulo by zero
+                {
+                    return lval("Function '%' passed incorrect type in argument 2. "
+                                "Expected Number, received Float Number.", l_err);
+                }
+            }
         }
-        if (op == "%") // Detecting modulo by zero
+        else
         {
-            if (rhs.num() == 0)
+            // pop next element
+            lval rhs = res.pop(res.cell().cbegin());
+
+            // process operation
+            if (op == "+") lhs.dnum() += rhs.convert_num();
+            if (op == "-") lhs.dnum() -= rhs.convert_num();
+            if (op == "*") lhs.dnum() *= rhs.convert_num();
+            if (op == "/") // Detecting division by zero
             {
-                lhs = lval("Modulo by zero!", l_err);
-                break;
+                if (rhs.convert_num() == 0)
+                {
+                    lhs = lval("Division by zero!", l_err);
+                    break;
+                }
+                lhs.dnum() /= rhs.convert_num();
             }
-            lhs.num() %= rhs.num();
+            if (op == "%") // Detecting modulo by zero
+            {
+                return lval("Function '%' passed incorrect type in argument 1. "
+                            "Expected Number, received Float Number.", l_err);
+            }
         }
     }
 
@@ -693,17 +785,19 @@ lval builtin_ord(lenv&, const lval& v, const string& func) // noexcept(false)
 {
     // Check error conditions
     LASSERT_NUM(func, v, 2);
-    LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number");
-    LASSERT_TYPE(func, v.cell()[1], 2, lval::LVAL_NUM, "Number");
+    if (v.cell()[0].type() != lval::LVAL_DNUM)
+        LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number/Float Number");
+    if (v.cell()[1].type() != lval::LVAL_DNUM)
+        LASSERT_TYPE(func, v.cell()[1], 2, lval::LVAL_NUM, "Number/Float Number");
 
     // Do the arithmetic comparision
     bool result = false;
-    size_t lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
+    D lhs = v.cell()[0].convert_num(), rhs = v.cell()[1].convert_num();
     if (func == ">") result = lhs > rhs;
     if (func == "<") result = lhs < rhs;
     if (func == ">=") result = lhs >= rhs;
     if (func == "<=") result = lhs <= rhs;
-    return lval(result);
+    return lval(static_cast<LL>(result));
 }
 
 // builtin function cmp(==/!=)
@@ -717,7 +811,7 @@ lval builtin_cmp(lenv&, const lval& v, const string& func) // noexcept(false)
     lval lhs = v.cell()[0], rhs = v.cell()[1];
     if (func == "==") result = lhs == rhs;
     if (func == "!=") result = lhs != rhs;
-    return lval(result);
+    return lval(static_cast<LL>(result));
 }
 
 // builtin function not(!/~)
@@ -728,7 +822,7 @@ lval builtin_not(lenv&, const lval& v, const string& func) // noexcept(false)
     LASSERT_NUM(func, v, 1);
     LASSERT_TYPE(func, v.cell()[0], 1, lval::LVAL_NUM, "Number");
 
-    size_t result = 0, op = v.cell()[0].num();
+    LL result = 0, op = v.cell()[0].num();
     if (func == "!") result = !op;
     if (func == "~") result = ~op;
     return lval(result);
@@ -744,8 +838,8 @@ lval builtin_log(lenv&, const lval& v, const string& func) // noexcept(false)
     LASSERT_TYPE(func, v.cell()[1], 2, lval::LVAL_NUM, "Number");
 
     // Do the logical operation
-    size_t result = 0;
-    size_t lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
+    LL result = 0;
+    LL lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
     if (func == "||") result = lhs || rhs;
     if (func == "&&") result = lhs && rhs;
     if (func == "|") result = lhs | rhs;
@@ -1022,6 +1116,7 @@ int main(int argc, char* argv[]) // noexcept(false)
 {
     // Create mpc parsers
     auto Number = make_parser("number"),
+         Float = make_parser("float"),
          Symbol = make_parser("symbol"),
          String = make_parser("string"),
          Comment = make_parser("comment"),
@@ -1033,16 +1128,17 @@ int main(int argc, char* argv[]) // noexcept(false)
     // Define parsers with language
     const auto lang = R"*******(
         number  : /(+|-)?[0-9]+/ ;
+        float   : /(+|-)?[0-9]+\.[0-9]+/ ;
         symbol  : /[a-zA-Z0-9_+\-*\/%\\=<>!&~\|\^]+/ ;
         string  : /"(\\.|[^"])*"/ ;
         comment : /;[^\r\n]*/ ;
         sexpr   : '(' <expr>* ')' ;
         qexpr   : '{' <expr>* '}' ;
-        expr    : <number> | <symbol> | <string> | <comment> | <sexpr> | <qexpr> ;
+        expr    : <float> | <number> | <symbol> | <string> | <comment> | <sexpr> | <qexpr> ;
         lispy   : /^/ <expr>* /$/ ;
         )*******"s;
     mpca_lang(MPCA_LANG_DEFAULT,
-        lang.c_str(), Number.get(), Symbol.get(), String.get(), Comment.get(),
+        lang.c_str(), Number.get(), Float.get(), Symbol.get(), String.get(), Comment.get(),
         SExpr.get(), QExpr.get(), Expr.get(), Lispy.get());
 
     // Create environment
@@ -1068,7 +1164,7 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.0.5"s;
+    const auto lispy_ver = "1.1"s;
     cout << "Lispy Version " << lispy_ver << '\n';
     cout << "Type 'exit 0' to exit." << endl;
 
