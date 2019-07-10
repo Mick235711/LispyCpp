@@ -139,12 +139,12 @@ struct lval
 {
 public:
     // Enum and type declarations
-    enum {LVAL_NUM = 0, LVAL_DNUM, LVAL_ERR, LVAL_SYM, LVAL_STR, LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN, LVAL_LAMBDA}; // lval types
+    enum {LVAL_NUM = 0, LVAL_DNUM, LVAL_BOOL, LVAL_ERR, LVAL_SYM, LVAL_STR, LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN, LVAL_LAMBDA}; // lval types
     typedef vector<lval> cell_t;
 
 private:
     // Member declarations
-    std::variant<LL, D, string, string, string, cell_t, cell_t, std::pair<builtin_t, string>, lambda_t> va;
+    std::variant<LL, D, bool, string, string, string, cell_t, cell_t, std::pair<builtin_t, string>, lambda_t> va;
 
 private:
     // Helper functions
@@ -173,6 +173,8 @@ public:
     D& dnum() {return get<LVAL_DNUM>(va);}
     const D dnum() const {return get<LVAL_DNUM>(va);}
     const D convert_num() const {return type() == LVAL_NUM ? static_cast<D>(num()) : dnum();}
+    bool& boolean() {return get<LVAL_BOOL>(va);}
+    const bool boolean() const {return get<LVAL_BOOL>(va);}
     string& err() {return get<LVAL_ERR>(va);}
     const string& err() const {return get<LVAL_ERR>(va);}
     string& sym() {return get<LVAL_SYM>(va);}
@@ -230,7 +232,7 @@ public:
         auto str = static_cast<char*>(malloc(strlen(a->contents + 1) + 1));
         strcpy(str, a->contents + 1);
         str = static_cast<char*>(mpcf_unescape(static_cast<mpc_val_t*>(str)));
-        lval res{str};
+        lval res{string(str)};
         free(str);
         return res;
     }
@@ -270,6 +272,8 @@ public:
     explicit lval(LL n) noexcept :va(n) {}
     // create a float lval
     explicit lval(D d) noexcept :va(d) {}
+    // create a bool lval
+    explicit lval(bool b) noexcept :va(b) {}
     // create an error lval
     lval(const string& e, lval_err_t) noexcept :va(in_place_index<LVAL_ERR>, e) {}
     // create a symbol lval
@@ -356,6 +360,8 @@ bool operator==(const lval& lhs, const lval& rhs) noexcept
             return lhs.num() == rhs.num();
         case lval::LVAL_DNUM:
             return lhs.dnum() == rhs.dnum();
+        case lval::LVAL_BOOL:
+            return lhs.boolean() == rhs.boolean();
         case lval::LVAL_ERR:
             return lhs.err() == rhs.err();
         case lval::LVAL_SYM:
@@ -388,6 +394,7 @@ string to_string(const lval& v) noexcept
     {
         case lval::LVAL_NUM: return "Number";
         case lval::LVAL_DNUM: return "Float Number";
+        case lval::LVAL_BOOL: return "Boolean";
         case lval::LVAL_ERR: return "Error";
         case lval::LVAL_SYM: return "Symbol";
         case lval::LVAL_STR: return "String";
@@ -416,6 +423,11 @@ ostream& operator<<(ostream& out, const lval& v) noexcept
         case lval::LVAL_DNUM:
             // v is a float, print it
             out << v.dnum();
+            break;
+
+        case lval::LVAL_BOOL:
+            // v is a bool, print it
+            out << (v.boolean() ? "true" : "false");
             break;
 
         case lval::LVAL_ERR:
@@ -797,7 +809,7 @@ lval builtin_ord(lenv&, const lval& v, const string& func) // noexcept(false)
     if (func == "<") result = lhs < rhs;
     if (func == ">=") result = lhs >= rhs;
     if (func == "<=") result = lhs <= rhs;
-    return lval(static_cast<LL>(result));
+    return lval(result);
 }
 
 // builtin function cmp(==/!=)
@@ -811,7 +823,7 @@ lval builtin_cmp(lenv&, const lval& v, const string& func) // noexcept(false)
     lval lhs = v.cell()[0], rhs = v.cell()[1];
     if (func == "==") result = lhs == rhs;
     if (func == "!=") result = lhs != rhs;
-    return lval(static_cast<LL>(result));
+    return lval(result);
 }
 
 // builtin function not(!/~)
@@ -840,8 +852,8 @@ lval builtin_log(lenv&, const lval& v, const string& func) // noexcept(false)
     // Do the logical operation
     LL result = 0;
     LL lhs = v.cell()[0].num(), rhs = v.cell()[1].num();
-    if (func == "||") result = lhs || rhs;
-    if (func == "&&") result = lhs && rhs;
+    if (func == "||") return lval(lhs || rhs);
+    if (func == "&&") return lval(lhs && rhs);
     if (func == "|") result = lhs | rhs;
     if (func == "&") result = lhs & rhs;
     if (func == "^") result = lhs ^ rhs;
@@ -854,7 +866,7 @@ lval builtin_if(lenv& e, const lval& v) // noexcept(false)
 {
     // Check error conditions
     LASSERT_NUM("if", v, 3);
-    LASSERT_TYPE("if", v.cell()[0], 1, lval::LVAL_NUM, "Number");
+    LASSERT_TYPE("if", v.cell()[0], 1, lval::LVAL_BOOL, "Boolean");
     LASSERT_TYPE("if", v.cell()[1], 2, lval::LVAL_QEXPR, "Q-Expression");
     LASSERT_TYPE("if", v.cell()[2], 3, lval::LVAL_QEXPR, "Q-Expression");
 
@@ -863,7 +875,7 @@ lval builtin_if(lenv& e, const lval& v) // noexcept(false)
 
     // Do the calculation
     lval res;
-    if (v.cell()[0].num())
+    if (v.cell()[0].boolean())
         res = eval(e, lhs);
     else res = eval(e, rhs);
     return res;
@@ -1064,6 +1076,10 @@ void add_builtins(lenv& e, mpc_pt& p) noexcept
     add_builtin(e, "print", builtin_print);
     add_builtin(e, "error", builtin_err);
     add_builtin(e, "exit", builtin_exit);
+
+    // True, false
+    put(e, lval("true", l_sym), lval(true));
+    put(e, lval("false", l_sym), lval(false));
 }
 
 // Evaluate a S-Expr lval
@@ -1164,7 +1180,7 @@ int main(int argc, char* argv[]) // noexcept(false)
     }
 
     // Print version and exit information
-    const auto lispy_ver = "1.1"s;
+    const auto lispy_ver = "1.1.1"s;
     cout << "Lispy Version " << lispy_ver << '\n';
     cout << "Type 'exit 0' to exit." << endl;
 

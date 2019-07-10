@@ -39,6 +39,7 @@ to store `lval`s and symbol table
 
 `C++11`:
 - use `auto` for variable definition
+- use universal initialization
 - use `static_cast` instead of C-style casts
 - use `std::shared_ptr` and `std::unique_ptr` instead of raw pointers
   (also used for managing `mpc_*_t` objects)
@@ -57,7 +58,7 @@ to store `lval`s and symbol table
 
 ## Language
 ### Basic types
-There are **eight** types in Lispy: `Number`, `Symbol`, `String`, `Error`, `Q-Expression`, `S-Expression`, `Function`, `Lambda`  
+There are **ten** types in Lispy: `Number`, `Float Number`, `Boolean`, `Symbol`, `String`, `Error`, `Q-Expression`, `S-Expression`, `Function`, `Lambda`  
 Type definition in mpc language: (/x/ implies that x is a regex)
 
     number  : /(+|-)?[0-9]+/ ;
@@ -85,6 +86,6 @@ There are still a lot to invent for this toy Lispy compiler and language.
 #### Todo for present time
 ~~Finish most of the bonus questions in Build Your Own Lisp, like adding logical operators.~~
 #### Future Todo
-Pick a few Bonus Projects in Chapter 16 to finish, like float-number and user-defined types.
+Pick a few Bonus Projects in Chapter 16 to finish, like ~~float-number~~ and user-defined types.
 
 Rewrite the whole `mpc` in C++17
