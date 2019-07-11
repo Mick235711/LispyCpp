@@ -62,12 +62,13 @@ There are **ten** types in Lispy: `Number`, `Float Number`, `Boolean`, `Symbol`,
 Type definition in mpc language: (/x/ implies that x is a regex)
 
     number  : /(+|-)?[0-9]+/ ;
-    symbol  : /[a-zA-Z0-9_+\-*\/\\=<>!&]+/ ;
+    float   : /(+|-)?[0-9]+\.[0-9]+/ ;
+    symbol  : /[a-zA-Z0-9_+\-*\/%\\=<>!&~\|\^]+/ ;
     string  : /"(\\.|[^"])*"/ ;
     comment : /;[^\r\n]*/ ;
     sexpr   : '(' <expr>* ')' ;
     qexpr   : '{' <expr>* '}' ;
-    expr    : <number> | <symbol> | <string> | <comment> | <sexpr> | <qexpr> ;
+    expr    : <float> | <number> | <symbol> | <string> | <comment> | <sexpr> | <qexpr> ;
     lispy   : /^/ <expr>* /$/ ;
 
 ### Builtin functions
