@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 #include <variant>
-#include <map>
+#include <unordered_map>
 #include <functional>
 
 // editline
@@ -31,7 +31,7 @@ using std::get;
 using std::in_place_index;
 using std::ostream;
 using std::to_string;
-using std::map;
+using std::unordered_map;
 using std::vector;
 
 // lval ASSERT
@@ -89,7 +89,7 @@ string to_string(const string& s) noexcept
 struct lval;
 
 // Lispy environment
-using lenv_t = map<string, lval>;
+using lenv_t = unordered_map<string, lval>;
 struct lenv
 {
     shared_ptr<lenv> parent;
@@ -104,9 +104,8 @@ using mpc_pt = unique_ptr<mpc_parser_t, mpc_parser_deleter>;
 using mpc_at = unique_ptr<mpc_ast_t, mpc_ast_deleter>;
 using mpc_et = unique_ptr<mpc_err_t, mpc_err_deleter>;
 
-// map of builtin functions
+// builtin functions type
 using builtin_t = std::function<lval(lenv&, const lval&)>;
-using mp_builtin_t = map<string, builtin_t>;
 
 // integer type
 using LL = long long;
